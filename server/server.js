@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs-extra';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -12,6 +13,16 @@ const execAsync = promisify(exec);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Cross-platform home directory resolution
+function getHomeDir() {
+  return process.env.HOME || process.env.USERPROFILE || os.homedir();
+}
+
+// Detect platform for OS-specific error messages
+function getPlatform() {
+  return process.platform === 'win32' ? 'windows' : 'macos';
+}
 
 const app = express();
 app.use(cors());
@@ -234,7 +245,11 @@ async function getTranscriptWithYtDlp(videoIdOrUrl, language = 'en') {
     } catch (error) {
       // Check if yt-dlp is installed
       if (error.message.includes('yt-dlp: command not found') || error.message.includes('yt-dlp') && error.code === 'ENOENT') {
-        console.log('yt-dlp is not installed or not in PATH. Install with: brew install yt-dlp');
+        const platform = getPlatform();
+        const installMsg = platform === 'windows' 
+          ? 'yt-dlp is not installed or not in PATH. Install with: choco install yt-dlp ffmpeg (or download from https://github.com/yt-dlp/yt-dlp and add to PATH)'
+          : 'yt-dlp is not installed or not in PATH. Install with: brew install yt-dlp ffmpeg';
+        console.log(installMsg);
         return null;
       }
       // Check if it's a real error or just a warning
@@ -411,7 +426,11 @@ async function downloadAudio(videoId) {
   } catch (error) {
     // Check if yt-dlp is installed
     if (error.message.includes('yt-dlp: command not found') || error.code === 'ENOENT') {
-      throw new Error('yt-dlp is not installed. Please install it with: brew install yt-dlp ffmpeg');
+      const platform = getPlatform();
+      const installMsg = platform === 'windows'
+        ? 'yt-dlp is not installed. Please install it with: choco install yt-dlp ffmpeg (or download from https://github.com/yt-dlp/yt-dlp and add to PATH)'
+        : 'yt-dlp is not installed. Please install it with: brew install yt-dlp ffmpeg';
+      throw new Error(installMsg);
     }
     throw new Error(`Failed to download audio: ${error.message}`);
   }
@@ -440,22 +459,40 @@ async function transcribeAudio(audioPath, language = 'en') {
     
     const whisperLang = whisperLanguageMap[language] || 'auto'; // Use 'auto' if language not in map
     
-    // Use whisper.cpp (C++ implementation) for faster transcription on Apple Silicon with Metal acceleration
+    // Use whisper.cpp (C++ implementation) for faster transcription
+    // On Apple Silicon, Metal GPU acceleration is automatically enabled
     // Model path - check common locations
     const whisperModel = process.env.WHISPER_MODEL || 'base'; // base, small, medium, large
-    const modelDir = process.env.WHISPER_MODEL_DIR || path.join(process.env.HOME || '/tmp', '.cache', 'whisper');
+    const homeDir = getHomeDir();
+    const modelDir = process.env.WHISPER_MODEL_DIR || path.join(homeDir, '.cache', 'whisper');
     let modelPath = path.join(modelDir, `ggml-${whisperModel}.bin`);
     
     // Check if model exists, if not, try alternative locations
     if (!fs.existsSync(modelPath)) {
       console.log(`Model not found at ${modelPath}, checking alternative locations...`);
-      // Try common model locations
+      // Build platform-specific alternative paths
       const alternativePaths = [
-        `/opt/homebrew/share/whisper-cpp/models/ggml-${whisperModel}.bin`,
-        `/usr/local/share/whisper-cpp/models/ggml-${whisperModel}.bin`,
+        // Project-local models folder (cross-platform)
         path.join(__dirname, 'models', `ggml-${whisperModel}.bin`),
-        path.join(process.env.HOME || '/tmp', '.cache', 'whisper', `ggml-${whisperModel}.bin`)
+        // User cache directory (cross-platform)
+        path.join(homeDir, '.cache', 'whisper', `ggml-${whisperModel}.bin`)
       ];
+      
+      // Add macOS-specific paths
+      if (process.platform === 'darwin') {
+        alternativePaths.push(
+          `/opt/homebrew/share/whisper-cpp/models/ggml-${whisperModel}.bin`,
+          `/usr/local/share/whisper-cpp/models/ggml-${whisperModel}.bin`
+        );
+      }
+      
+      // Add Windows-specific paths
+      if (process.platform === 'win32') {
+        alternativePaths.push(
+          path.join('C:', 'Program Files', 'whisper-cpp', 'models', `ggml-${whisperModel}.bin`),
+          path.join('C:', 'Program Files (x86)', 'whisper-cpp', 'models', `ggml-${whisperModel}.bin`)
+        );
+      }
       
       let foundModel = false;
       for (const altPath of alternativePaths) {

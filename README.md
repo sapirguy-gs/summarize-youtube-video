@@ -35,11 +35,13 @@ This upgrade significantly reduces processing time when transcripts are availabl
 - Node.js (v16 or higher)
 - npm or yarn
 - **Ollama** installed and running (for summarization)  
-  - Install from the official site: [https://ollama.com](https://ollama.com) (macOS, Linux, WSL)
+  - Install from the official site: [https://ollama.com](https://ollama.com) (macOS, Windows, Linux, WSL)
 - **whisper.cpp** (C++ CLI) installed for transcription  
-  - On macOS (Homebrew): `brew install whisper-cpp`  
-  - This provides the `whisper-cli` binary used by the server
-- **yt-dlp** and **ffmpeg** installed (for transcript/audio download): `brew install yt-dlp ffmpeg`
+  - Build or install from: [https://github.com/ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+  - Ensure `whisper-cli` (or `whisper-cli.exe` on Windows) is available on PATH
+- **yt-dlp** and **ffmpeg** installed (for transcript/audio download)
+  - **macOS**: `brew install yt-dlp ffmpeg`
+  - **Windows**: `choco install yt-dlp ffmpeg` (or download manually and add to PATH)
 
 ## Installation
 
@@ -64,6 +66,10 @@ OLLAMA_MODEL=qwen2.5:latest      # Default summarization model (multi-language, 
 # Whisper.cpp model (optional, defaults to 'base')
 # Options: tiny, base, small, medium, large
 WHISPER_MODEL=base
+
+# Whisper model directory (optional, auto-detected if not set)
+# The server automatically searches common locations (see below)
+# WHISPER_MODEL_DIR=/path/to/whisper/models
 
 PORT=3001
 ```
@@ -96,6 +102,26 @@ ollama pull qwen2.5:7b-instruct
 **Important**:
 - **Transcription** uses local **whisper.cpp** via the `whisper-cli` binary (C++ with Metal acceleration on Apple Silicon) – no API keys needed.
 - **Summarization** uses local **Ollama** – no API keys needed.
+
+### Whisper Model Locations
+
+The server automatically searches for Whisper models in the following locations (in order):
+
+**Cross-platform:**
+- Project-local models folder: `./server/models/`
+- User cache directory: `<home>/.cache/whisper/`
+
+**macOS-specific:**
+- `/opt/homebrew/share/whisper-cpp/models/`
+- `/usr/local/share/whisper-cpp/models/`
+
+**Windows-specific:**
+- `C:\Program Files\whisper-cpp\models\`
+- `C:\Program Files (x86)\whisper-cpp\models\`
+
+You can override this behavior by setting `WHISPER_MODEL_DIR` in your `.env` file.
+
+Download Whisper models from: [https://huggingface.co/ggerganov/whisper.cpp/tree/main](https://huggingface.co/ggerganov/whisper.cpp/tree/main)
 
 ### Client Setup
 
@@ -217,16 +243,92 @@ summarizeYouTube/
 - `react` - UI framework
 - `vite` - Build tool
 
+## Platform-Specific Installation
+
+### macOS
+
+1. **Install Homebrew** (if not already installed):
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   brew install whisper-cpp yt-dlp ffmpeg
+   ```
+
+3. **Install Ollama**:
+   - Visit [https://ollama.com](https://ollama.com) and download for macOS
+   - Or use Homebrew: `brew install ollama`
+
+4. **Verify installations**:
+   ```bash
+   whisper-cli --help
+   yt-dlp --version
+   ffmpeg -version
+   ollama --version
+   ```
+
+### Windows
+
+1. **Install Node.js** (if not already installed):
+   - Download from [https://nodejs.org](https://nodejs.org) (v18+ recommended)
+   - Verify: `node -v` and `npm -v`
+
+2. **Install Chocolatey** (recommended package manager for Windows):
+   - Visit [https://chocolatey.org/install](https://chocolatey.org/install)
+   - Or run in PowerShell (as Administrator):
+     ```powershell
+     Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+     ```
+
+3. **Install dependencies via Chocolatey**:
+   ```powershell
+   choco install yt-dlp ffmpeg -y
+   ```
+
+4. **Install whisper.cpp**:
+   - Build from source: [https://github.com/ggerganov/whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+   - Or download pre-built binaries if available
+   - Ensure `whisper-cli.exe` is in your PATH
+
+5. **Install Ollama**:
+   - Visit [https://ollama.com/download](https://ollama.com/download) and download for Windows
+   - Run the installer
+
+6. **Verify installations**:
+   ```powershell
+   whisper-cli --help
+   yt-dlp --version
+   ffmpeg -version
+   ollama --version
+   ```
+
+7. **Download Whisper models**:
+   - Download from [https://huggingface.co/ggerganov/whisper.cpp/tree/main](https://huggingface.co/ggerganov/whisper.cpp/tree/main)
+   - Place `ggml-base.bin` (or other model) in one of the locations listed above
+   - Or set `WHISPER_MODEL_DIR` in your `.env` file
+
+## Cross-Platform Behavior
+
+This project is designed to run on **macOS** and **Windows**. The Node.js server automatically:
+- Detects the user home directory using cross-platform methods
+- Resolves OS-specific paths for Whisper models
+- Provides platform-aware error messages when dependencies are missing
+
+No code changes are required per-OS - the same codebase works on both platforms.
+
 ## Notes
 
 - **Summarization**: Uses Ollama (local LLM) - no API costs!
-- **Transcription**: Uses **whisper.cpp** via `whisper-cli` (C++ / Metal-optimized) – only needed when no YouTube transcript exists
+- **Transcription**: Uses **whisper.cpp** via `whisper-cli` (C++ / Metal-optimized on Apple Silicon) – only needed when no YouTube transcript exists
 - **No API Keys Required**: Everything runs locally
 - Summaries are saved in the `server/data/` directory
 - Temporary audio files are stored in `server/tmp/` and automatically cleaned up
 - The system will attempt to use the requested language for transcripts, but will fall back to English if the requested language is not available
 - Make sure Ollama is running before starting the server
 - You can change the models by setting `OLLAMA_MODEL` (summarization) and `WHISPER_MODEL` (transcription model size for whisper.cpp) in your `.env` file
+- If required tools are missing, the server provides platform-specific installation guidance (macOS → Homebrew, Windows → Chocolatey or manual install)
 
 ## License
 
