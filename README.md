@@ -22,9 +22,11 @@ The system has been upgraded to optimize the processing flow:
 
 ### New Optimized Flow:
 1. Get YouTube link
-2. **Check for existing transcript** (using `youtube-transcript-api`)
-3. **If transcript exists**: Download transcript → Summarize immediately ✨
-4. **If no transcript**: Download audio → Transcribe → Summarize (full process)
+2. **Check for existing transcript**:
+   - First via `yt-dlp` + VTT parsing (fast, robust, no API keys)
+   - Then, as a fallback, via the `youtube-transcript` npm package
+3. **If transcript exists**: Use YouTube transcript → Summarize immediately ✨
+4. **If no transcript**: Download audio → Transcribe with whisper.cpp → Summarize (full process)
 
 This upgrade significantly reduces processing time when transcripts are available on YouTube.
 
@@ -201,12 +203,15 @@ summarizeYouTube/
 
 ### Server
 - `express` - Web framework
-- `youtube-transcript` - Fetch existing YouTube transcripts
+- `youtube-transcript` - Fallback method to fetch existing YouTube transcripts
 - `axios` - HTTP client for Ollama API
 - `form-data` - Handle file uploads for transcription
 - `cors` - Enable CORS
 - `fs-extra` - File system utilities
-- **System tools** (not in `package.json` but required): `yt-dlp`, `ffmpeg`, `whisper-cli` (from whisper.cpp)
+- **System tools (external)**:
+  - `yt-dlp` – primary method to fetch subtitles/transcripts and to download audio
+  - `ffmpeg` – audio conversion for whisper.cpp
+  - `whisper-cli` (from **whisper.cpp**) – C++/Metal-accelerated transcription
 
 ### Client
 - `react` - UI framework
