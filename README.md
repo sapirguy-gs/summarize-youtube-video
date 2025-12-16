@@ -6,7 +6,7 @@ A full-stack application that summarizes YouTube videos by first checking for ex
 
 - **Smart Transcript Detection**: Automatically checks for existing YouTube transcripts before processing
 - **Fast Processing**: If a transcript exists, skips audio download and transcription steps
-- **Fallback Process**: If no transcript is available, downloads audio and transcribes using local Whisper (Python package)
+- **Fallback Process**: If no transcript is available, downloads audio and transcribes using local Whisper.cpp (`whisper-cli`, C++ with Metal acceleration)
 - **Multi-language Support**: Supports multiple languages for both transcription and summarization
 - **Beautiful UI**: Modern, responsive React frontend
 
@@ -32,9 +32,12 @@ This upgrade significantly reduces processing time when transcripts are availabl
 
 - Node.js (v16 or higher)
 - npm or yarn
-- Ollama installed and running (for summarization)
-- Whisper (Python package) installed for transcription: `pip install openai-whisper`
-- yt-dlp installed: `brew install yt-dlp ffmpeg`
+- **Ollama** installed and running (for summarization)  
+  - Install from the official site: [https://ollama.com](https://ollama.com) (macOS, Linux, WSL)
+- **whisper.cpp** (C++ CLI) installed for transcription  
+  - On macOS (Homebrew): `brew install whisper-cpp`  
+  - This provides the `whisper-cli` binary used by the server
+- **yt-dlp** and **ffmpeg** installed (for transcript/audio download): `brew install yt-dlp ffmpeg`
 
 ## Installation
 
@@ -50,37 +53,47 @@ Create a `.env` file in the `server` directory (optional):
 ```
 # Ollama configuration (defaults shown)
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama2              # Model for summarization
+OLLAMA_MODEL=qwen2.5:latest      # Default summarization model (multi-language, via Ollama)
 
-# Whisper model (optional, defaults to 'base')
+# You can also use a specific variant, e.g.:
+# OLLAMA_MODEL=qwen2.5:7b-instruct
+# or other models like llama3:latest, llama3.2:latest (update this value to match what you `ollama pull`)
+
+# Whisper.cpp model (optional, defaults to 'base')
 # Options: tiny, base, small, medium, large
 WHISPER_MODEL=base
 
 PORT=3001
 ```
 
-**Note**: Make sure Ollama is running on your system. You can start it with:
+**Note**: Make sure Ollama is installed and running on your system.
+
+Install Ollama from the official site:
+
+```bash
+# Visit the site and follow install instructions:
+# https://ollama.com
+```
+
+Start the Ollama server:
 ```bash
 ollama serve
 ```
 
-And pull the summarization model:
+And pull the summarization model used by this app:
 ```bash
-# Pull summarization model
-ollama pull llama2
-# or any other model you prefer (llama3, mistral, etc.)
+# Pull summarization model (default used in code)
+ollama pull qwen2.5:latest
+
+# Or explicitly pull a size-variant with strong multilingual support:
+ollama pull qwen2.5:7b-instruct
+
+# You can also use other models (llama3, mistral, etc.) but then set OLLAMA_MODEL accordingly.
 ```
 
-**Install Whisper for transcription:**
-```bash
-pip install openai-whisper
-# or
-pip3 install openai-whisper
-```
-
-**Important**: 
-- Transcription uses local Whisper (Python package) - no API keys needed!
-- Summarization uses local Ollama - no API keys needed!
+**Important**:
+- **Transcription** uses local **whisper.cpp** via the `whisper-cli` binary (C++ with Metal acceleration on Apple Silicon) – no API keys needed.
+- **Summarization** uses local **Ollama** – no API keys needed.
 
 ### Client Setup
 
@@ -189,11 +202,11 @@ summarizeYouTube/
 ### Server
 - `express` - Web framework
 - `youtube-transcript` - Fetch existing YouTube transcripts
-- `ytdl-core` - Download YouTube audio
 - `axios` - HTTP client for Ollama API
 - `form-data` - Handle file uploads for transcription
 - `cors` - Enable CORS
 - `fs-extra` - File system utilities
+- **System tools** (not in `package.json` but required): `yt-dlp`, `ffmpeg`, `whisper-cli` (from whisper.cpp)
 
 ### Client
 - `react` - UI framework
@@ -202,13 +215,13 @@ summarizeYouTube/
 ## Notes
 
 - **Summarization**: Uses Ollama (local LLM) - no API costs!
-- **Transcription**: Uses local Whisper (Python package) - only needed when no YouTube transcript exists
+- **Transcription**: Uses **whisper.cpp** via `whisper-cli` (C++ / Metal-optimized) – only needed when no YouTube transcript exists
 - **No API Keys Required**: Everything runs locally
 - Summaries are saved in the `server/data/` directory
 - Temporary audio files are stored in `server/tmp/` and automatically cleaned up
 - The system will attempt to use the requested language for transcripts, but will fall back to English if the requested language is not available
 - Make sure Ollama is running before starting the server
-- You can change the models by setting `OLLAMA_MODEL` (summarization) and `OLLAMA_WHISPER_MODEL` (transcription) in your `.env` file
+- You can change the models by setting `OLLAMA_MODEL` (summarization) and `WHISPER_MODEL` (transcription model size for whisper.cpp) in your `.env` file
 
 ## License
 
