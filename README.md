@@ -305,9 +305,18 @@ summarizeYouTube/
    ```
 
 7. **Download Whisper models**:
-   - Download from [https://huggingface.co/ggerganov/whisper.cpp/tree/main](https://huggingface.co/ggerganov/whisper.cpp/tree/main)
-   - Place `ggml-base.bin` (or other model) in one of the locations listed above
-   - Or set `WHISPER_MODEL_DIR` in your `.env` file
+   - **What**: whisper.cpp needs pre-trained model files (large binary files) to transcribe audio. These are NOT included with whisper.cpp and must be downloaded separately.
+   - **Where to download**: Go to [https://huggingface.co/ggerganov/whisper.cpp/tree/main](https://huggingface.co/ggerganov/whisper.cpp/tree/main)
+   - **Which file**: Click on a model file (e.g., `ggml-base.bin` - recommended for balance of speed/accuracy). Other options:
+     - `ggml-tiny.bin` (smallest, fastest, less accurate)
+     - `ggml-base.bin` (recommended default)
+     - `ggml-small.bin`, `ggml-medium.bin`, `ggml-large.bin` (larger = more accurate but slower)
+   - **Where to place it**: Put the downloaded `.bin` file in one of these locations (the server searches these automatically):
+     - `C:\Program Files\whisper-cpp\models\` (if you installed whisper.cpp there)
+     - `C:\Program Files (x86)\whisper-cpp\models\`
+     - Or create a folder: `C:\Users\YourUsername\.cache\whisper\` and place it there
+     - Or in your project: `.\server\models\` (create the folder if it doesn't exist)
+   - **Alternative**: Set a custom location by adding `WHISPER_MODEL_DIR=C:\path\to\your\models` in your `server\.env` file
 
 ## Cross-Platform Behavior
 
